@@ -70,6 +70,12 @@ class FuncTorchInterpreter(ABC):
     def key(self):
         return self._cptr.key()
 
+    def get_state(self):
+        raise NotImplementedError()
+
+    def check_state(self, state):
+        return state == self.get_state()
+
 
 @contextlib.contextmanager
 def temporarily_pop_interpreter_stack():
@@ -105,6 +111,9 @@ class VmapInterpreter(FuncTorchInterpreter):
         elif typ == RandomnessType.Different:
             return "different"
         raise RuntimeError(f"Unknown RandomnessType: {typ}")
+
+    def get_state(self):
+        return (self.key().name, self.level(), self.randomness())
 
 
 @contextlib.contextmanager
@@ -142,6 +151,9 @@ class GradInterpreter(FuncTorchInterpreter):
 
     def prev_grad_mode(self):
         return self._cptr.prevGradMode()
+
+    def get_state(self):
+        return (self.key().name, self.level())
 
 
 class JvpInterpreter(FuncTorchInterpreter):
@@ -204,6 +216,18 @@ def retrieve_current_functorch_interpreter():
     interpreter = torch._C._functorch.peek_interpreter_stack()
     assert interpreter is not None
     return coerce_cinterpreter(interpreter)
+
+
+def retrieve_all_functorch_interpreters():
+    cis = torch._C._functorch.get_interpreter_stack()
+    assert cis is not None
+    return [coerce_cinterpreter(ci) for ci in cis]
+
+
+def compare_functorch_state(states) -> bool:
+    cis = retrieve_all_functorch_interpreters()
+    return len(cis) == len(states) and \
+        all(ci.check_state(state) for ci, state in zip(cis, states))
 
 
 def dispatch_functorch(op, args, kwargs):
