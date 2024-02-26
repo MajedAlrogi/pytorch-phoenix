@@ -78,6 +78,7 @@ void broadcast_coalesced(
   // allocating too much memory (in case the specified tensors are very large).
   std::deque<BroadcastWork> in_flight;
   constexpr auto max_in_flight = 2;
+  // printf("rank: %d, buckets.size(): %lu\n", rank, buckets.size());
   for (const auto& bucket : buckets) {
     if (in_flight.size() >= max_in_flight) {
       in_flight.front().finish();

@@ -1,9 +1,12 @@
+#include <c10/util/Logging.h>
+#include <sys/syscall.h>
 #include <torch/csrc/distributed/c10d/NCCLUtils.hpp>
 #include <torch/csrc/distributed/c10d/ProcessGroupNCCL.hpp>
 #include <fstream>
+#include <iostream>
 #include <mutex>
 #include <sstream>
-
+#include "nccl.h"
 #ifdef USE_C10D_NCCL
 
 #include <exception>
@@ -390,6 +393,7 @@ ProcessGroupNCCL::WorkNCCL::WorkNCCL(
       ncclStartEvents_->emplace_back(at::cuda::CUDAEvent(cudaEventDefault));
     }
   }
+  // std::cerr << "[c10d]: Num devices: " << devices.size() << std::endl;
   ncclEndEvents_ = std::make_shared<std::vector<at::cuda::CUDAEvent>>();
   ncclEndEvents_->reserve(devices.size());
   for (uint32_t i = 0; i < devices.size(); ++i) {
@@ -557,6 +561,7 @@ void ProcessGroupNCCL::WorkNCCL::synchronizeStreams() {
     auto currentStream = at::cuda::getCurrentCUDAStream(devices_[i].index());
     // Block the current stream on the NCCL stream
     (*ncclEndEvents_)[i].block(currentStream);
+    // ncclModStreamSync(currentStream.stream());
   }
 
   if (avoidRecordStreams_) {
@@ -2214,9 +2219,22 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::collective(
           fn(inputs[i], outputs[i], ncclComm->getNcclComm(), ncclStream),
           ncclComm->getNcclComm(),
           ncclComm->getNcclCommFailureReason());
+      // auto tid = syscall(SYS_gettid);
+      // std::cerr << "Tid = " << tid << std::endl;
+      // ! thia is non-blocking, but we should add modStreamSync somewhere
 #endif
     }
   }
+
+  for (const auto i : c10::irange(inputs.size())) {
+    if (!inputs_same_dev || (inputs_same_dev && i == 0)) {
+      gpuGuard.set_index(devices[i].index());
+    }
+    decltype(i) stream_comm_i = (inputs_same_dev ? 0 : i);
+    auto& ncclStream = ncclStreams[stream_comm_i];
+    ncclModStreamSync(ncclStream.stream());
+  }
+
   post(ncclStreams, work);
 
   // End event should only be recorded after the ncclGroupEnd()
@@ -2586,6 +2604,8 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::allreduce_impl(
         auto ncclDataType = getNcclDataType(input.scalar_type());
         auto ncclReduceOp = getNcclReduceOp(
             opts.reduceOp, input, ncclDataType, comm, dev_in_group++);
+        std::cerr << "[c10d] "
+                  << "ncclAllReduce" << std::endl;
         return ncclAllReduce(
             input.data_ptr(),
             output.data_ptr(),
@@ -2684,6 +2704,8 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::broadcast(
           ncclComm_t comm,
           at::cuda::CUDAStream& stream) {
         const auto root = opts.rootRank * tensors.size() + opts.rootTensor;
+        std::cerr << "[c10d] "
+                  << "ncclBcast" << std::endl;
         return ncclBcast(
             input.data_ptr(),
             input.numel(),
@@ -2875,7 +2897,6 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::allgather(
   check_gpu_tensors_different_devices(inputTensors);
   // @lint-ignore CLANGTIDY
   bool same_size = check_same_size(outputTensors.back());
-
   if (same_size) {
     auto outputFlattened =
         flatten_for_scatter_gather(outputTensors, inputTensors, size_);
@@ -2911,13 +2932,16 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::allgather(
             c10::cuda::CUDACachingAllocator::recordStream(
                 output.storage().data_ptr(), stream);
           }
-          return ncclAllGather(
+          std::cerr << "[c10d] "
+                    << "allgather" << std::endl;
+          auto res = ncclAllGather(
               input.data_ptr(),
               output.data_ptr(),
               input.numel(),
               getNcclDataType(input.scalar_type()),
               comm,
               stream.stream());
+          return res;
         },
         [](std::vector<at::cuda::CUDAStream>& ncclStreams,
            c10::intrusive_ptr<ProcessGroupNCCL::WorkNCCL>& work) {
