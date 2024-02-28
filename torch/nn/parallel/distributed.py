@@ -1602,6 +1602,7 @@ class DistributedDataParallel(Module, Joinable):
             comm_work.append(work)
         for work in comm_work:
             work.wait()
+        print("[DPP]: Allreduce for backward pass has been done.")
 
     # Allreduces the used parameter mapping across ranks.
     def _match_unused_params_allreduce(self):

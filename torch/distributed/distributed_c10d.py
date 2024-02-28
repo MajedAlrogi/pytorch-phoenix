@@ -1912,11 +1912,13 @@ def broadcast(tensor, src, group=None, async_op=False):
         group_src_rank = get_group_rank(group, src)
         opts.rootRank = group_src_rank
         work = group.broadcast([tensor], opts)
+    print("[dist] broadcast")
     if async_op:
         return work
     else:
         work.wait()
-
+        print("[dist] broadcast sync done")
+        
 @_exception_logger
 def all_reduce(tensor, op=ReduceOp.SUM, group=None, async_op=False):
     """
@@ -1988,13 +1990,15 @@ def all_reduce(tensor, op=ReduceOp.SUM, group=None, async_op=False):
             return _IllegalWork()
         else:
             return None
-
+    print("[dist] all_reduce")
     work = group.allreduce([tensor], opts)
 
     if async_op:
         return work
     else:
         work.wait()
+        print("[dist] all_reduce sync done")
+
 
 @_exception_logger
 def all_reduce_coalesced(tensors, op=ReduceOp.SUM, group=None, async_op=False):
@@ -2616,11 +2620,12 @@ def all_gather(tensor_list, tensor, group=None, async_op=False):
     else:
         work = group.allgather([tensor_list], [tensor])
 
+    print("[dist] all_gather")
     if async_op:
         return work
     else:
         work.wait()
-
+        print("[dist] all_gather sync done")
 
 @_exception_logger
 def all_gather_into_tensor(output_tensor, input_tensor, group=None, async_op=False):

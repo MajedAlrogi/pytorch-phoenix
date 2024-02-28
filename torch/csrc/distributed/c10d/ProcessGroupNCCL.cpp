@@ -2219,9 +2219,7 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::collective(
           fn(inputs[i], outputs[i], ncclComm->getNcclComm(), ncclStream),
           ncclComm->getNcclComm(),
           ncclComm->getNcclCommFailureReason());
-      // auto tid = syscall(SYS_gettid);
-      // std::cerr << "Tid = " << tid << std::endl;
-      // ! thia is non-blocking, but we should add modStreamSync somewhere
+      // ! this is non-blocking, but we should add modStreamSync somewhere
 #endif
     }
   }

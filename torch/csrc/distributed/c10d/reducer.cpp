@@ -1576,7 +1576,9 @@ void Reducer::finalize_backward() {
         bucket.future_work,
         "Expected bucket.future_work not to be null. "
         "This may indicate that communication hook was not properly installed.");
+    std::cerr << "[reducer] waiting for future_work" << std::endl;
     bucket.future_work->wait();
+    std::cerr << "[reducer] future_work done" << std::endl;
     auto future_result = comm_hook_ == nullptr
         ? detail::parseCppCommHookResult(bucket.future_work->value())
         : comm_hook_->parseHookResult(bucket.future_work->value());
