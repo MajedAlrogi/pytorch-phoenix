@@ -139,6 +139,9 @@ std::string getNcclErrorDetailStr(
           "ncclRemoteError: A call failed possibly due to a network error or a remote process exiting prematurely.";
       break;
 #endif
+    case ncclModError:
+      interpret = "ncclModError: Emulator Related Error!";
+      break;
     default:
       interpret = "Unknown NCCL error!";
   }
