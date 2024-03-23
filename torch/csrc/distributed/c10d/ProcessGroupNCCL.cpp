@@ -559,9 +559,13 @@ void ProcessGroupNCCL::WorkNCCL::synchronize() {
 void ProcessGroupNCCL::WorkNCCL::synchronizeStreams() {
   for (const auto i : c10::irange(devices_.size())) {
     auto currentStream = at::cuda::getCurrentCUDAStream(devices_[i].index());
+
+    // printf("[c10d] sync stream called in work->wait\n");
+    ncclModStreamSync(currentStream.stream());
+    // printf("[c10d] sync stream done in work->wait\n");
+
     // Block the current stream on the NCCL stream
     (*ncclEndEvents_)[i].block(currentStream);
-    // ncclModStreamSync(currentStream.stream());
   }
 
   if (avoidRecordStreams_) {
@@ -2229,8 +2233,9 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::collective(
       gpuGuard.set_index(devices[i].index());
     }
     decltype(i) stream_comm_i = (inputs_same_dev ? 0 : i);
-    auto& ncclStream = ncclStreams[stream_comm_i];
-    ncclModStreamSync(ncclStream.stream());
+    // auto& ncclStream = ncclStreams[stream_comm_i];
+    // printf("[c10d] sync stream called\n");
+    // ncclModStreamSync(ncclStream.stream());
   }
 
   post(ncclStreams, work);
@@ -2602,8 +2607,8 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::allreduce_impl(
         auto ncclDataType = getNcclDataType(input.scalar_type());
         auto ncclReduceOp = getNcclReduceOp(
             opts.reduceOp, input, ncclDataType, comm, dev_in_group++);
-        std::cerr << "[c10d] "
-                  << "ncclAllReduce" << std::endl;
+        // std::cerr << "[c10d] "
+        //           << "ncclAllReduce" << std::endl;
         return ncclAllReduce(
             input.data_ptr(),
             output.data_ptr(),
@@ -2702,8 +2707,8 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::broadcast(
           ncclComm_t comm,
           at::cuda::CUDAStream& stream) {
         const auto root = opts.rootRank * tensors.size() + opts.rootTensor;
-        std::cerr << "[c10d] "
-                  << "ncclBcast" << std::endl;
+        // std::cerr << "[c10d] "
+        //           << "ncclBcast" << std::endl;
         return ncclBcast(
             input.data_ptr(),
             input.numel(),
@@ -2930,8 +2935,8 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::allgather(
             c10::cuda::CUDACachingAllocator::recordStream(
                 output.storage().data_ptr(), stream);
           }
-          std::cerr << "[c10d] "
-                    << "allgather" << std::endl;
+          // std::cerr << "[c10d] "
+          //           << "allgather" << std::endl;
           auto res = ncclAllGather(
               input.data_ptr(),
               output.data_ptr(),
