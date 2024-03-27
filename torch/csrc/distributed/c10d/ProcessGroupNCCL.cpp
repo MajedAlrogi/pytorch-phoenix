@@ -561,7 +561,7 @@ void ProcessGroupNCCL::WorkNCCL::synchronizeStreams() {
     auto currentStream = at::cuda::getCurrentCUDAStream(devices_[i].index());
 
     // printf("[c10d] sync stream called in work->wait\n");
-    ncclModStreamSync(currentStream.stream());
+    // ncclModStreamSync(currentStream.stream());
     // printf("[c10d] sync stream done in work->wait\n");
 
     // Block the current stream on the NCCL stream
@@ -580,6 +580,7 @@ void ProcessGroupNCCL::WorkNCCL::synchronizeInternal(
 
   // In case of blocking, wait for the operation to complete.
   if (blockingWait_) {
+    // printf("[c10d] blocking wait called in work->wait\n");
     while (!isCompleted()) {
       bool timedOut = checkTimeout(
           timeout == kNoTimeout ? c10::nullopt : c10::make_optional(timeout));
@@ -624,6 +625,7 @@ void ProcessGroupNCCL::WorkNCCL::synchronizeInternal(
 
 // Same as calling synchronize().
 bool ProcessGroupNCCL::WorkNCCL::wait(std::chrono::milliseconds timeout) {
+  // printf("[c10d] wait called in work->wait\n");
   RECORD_PARAM_COMMS(
       static_cast<int>(this->seq_), // seq
       0, // process group ptr
@@ -636,6 +638,7 @@ bool ProcessGroupNCCL::WorkNCCL::wait(std::chrono::milliseconds timeout) {
       std::vector<int64_t>(), // outSplitSizes
       static_cast<int>(devices_.size())); // worldSize
   synchronizeInternal(timeout);
+  // printf("[c10d] wait done in work->wait\n");
   // Always return true, because abort API is not implemented.
   return true;
 }
@@ -2228,17 +2231,18 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::collective(
     }
   }
 
+  post(ncclStreams, work);
+
   for (const auto i : c10::irange(inputs.size())) {
     if (!inputs_same_dev || (inputs_same_dev && i == 0)) {
       gpuGuard.set_index(devices[i].index());
     }
     decltype(i) stream_comm_i = (inputs_same_dev ? 0 : i);
-    // auto& ncclStream = ncclStreams[stream_comm_i];
-    // printf("[c10d] sync stream called\n");
-    // ncclModStreamSync(ncclStream.stream());
+    auto& ncclStream = ncclStreams[stream_comm_i];
+    // printf("[future] sync stream called\n");
+    ncclModStreamSync(ncclStream.stream());
+    // printf("[future] sync stream ended\n");
   }
-
-  post(ncclStreams, work);
 
   // End event should only be recorded after the ncclGroupEnd()
   for (const auto i : c10::irange(devices.size())) {

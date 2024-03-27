@@ -1903,6 +1903,7 @@ class DistributedDataParallel(Module, Joinable):
         assert self.logger is not None
         self.logger._set_comm_hook_name(str(comm_hook_type))
         dist._register_builtin_comm_hook(self.reducer, comm_hook_type)
+        print("Builtin comm hook registered.", comm_hook_type)
 
     def _register_fused_optim(self, optim: Type, *args, optim_params=None, **kwargs):
         r"""
@@ -2048,6 +2049,7 @@ class DistributedDataParallel(Module, Joinable):
             state = self.buffer_hook.buffer_comm_hook_state
             futs = hook(state, self.named_module_buffers)
             if futs is not None:
+                print("sync module buffers with hook")
                 self.reducer._install_post_backward_futures(futs)
 
     def _default_broadcast_coalesced(
